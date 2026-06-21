@@ -1,4 +1,6 @@
 
+# аналогічно basic_categorizer.py є тестовим рішенням, але лише з бібліотекою sentence-transformers для векторних представлень embeddings.
+
 # from __future__ import annotations
 #
 # import hashlib
@@ -8,7 +10,9 @@
 # from pathlib import Path
 #
 # import numpy as np
-#
+# 
+# Для кожного тексту створюється унікальний SHA1-хеш.
+# 
 # def _sha1(s: str) -> str:
 #     return hashlib.sha1(s.encode('utf-8')).hexdigest()
 #
@@ -26,6 +30,8 @@
 #     vector: np.ndarray
 #     model_name: str
 #
+# Ініціалізація embeddings моделі sentence-transformers 
+# 
 # class Embedder:
 #
 #         def __init__(self, model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", cache_dir: str = "data/cache"):
@@ -36,6 +42,10 @@
 #         def _get_model(self):
 #             return _load_model(self.model_name)
 #
+#  Тут відбувається генерація ембеддинга одного тексту
+# Ця частина забезпечує кешування як самої моделі (через lru_cache), так і вже обчислених ембеддингів (у JSON-файлах), 
+# підтримує побудову векторів для одного або кількох текстів та надає функцію для обчислення косинусної схожості(cosine_similarity), яка використовується для оцінки семантичної близькості текстів.
+# 
 #         def embed_text(self, text: str) -> EmbeddingResult:
 #             text = (text or "").strip()
 #             model = self._get_model()
