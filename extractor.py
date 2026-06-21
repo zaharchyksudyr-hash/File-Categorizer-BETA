@@ -1,3 +1,11 @@
+# Імпортуються бібліотеки для роботи з різними форматами файлів:
+
+# Path — робота зі шляхами до файлів;
+# PdfReader — читання PDF;
+# Document — читання DOCX;
+# Presentation — читання PPTX;
+# load_workbook — читання XLSX.
+
 from __future__ import annotations
 from pathlib import Path
 
@@ -5,6 +13,11 @@ from pypdf import PdfReader
 from docx import Document
 from pptx import Presentation
 from openpyxl import load_workbook
+
+# Це головна функція модуля.
+# Вона:
+    # визначає розширення файлу;
+    # викликає відповідний метод витягування тексту.
 
 def extract_text(path: Path, *, max_chars: int = 2_000) -> str:
 
@@ -24,6 +37,16 @@ def extract_text(path: Path, *, max_chars: int = 2_000) -> str:
         return _extract_pptx(path, max_chars=max_chars)
     return ""
 
+
+# Функція намагається відкрити файл у різних кодуваннях:
+    # utf-8
+    # utf-8-sig
+    # cp1251
+    # latin-1
+# Якщо одне з них підходить — текст читається успішно.
+# Якщо жодне не спрацювало — робиться остання спроба.
+# Після цього текст обрізається до max_chars.
+
 def _extract_txt(path: Path, *, max_chars: int) -> str:
     for enc in ("utf-8", "utf-8-sig", "cp1251", "latin-1"):
         try:
@@ -40,6 +63,16 @@ def _extract_txt(path: Path, *, max_chars: int) -> str:
     except OSError:
         return ""
 
+# Документ відкривається через python-docx.
+# Далі:
+    # проходяться всі абзаци;
+    # порожні пропускаються;
+    # текст кожного абзацу додається у список.
+# Наприкінці:
+    # "\n".join(parts)
+    # усі абзаци об'єднуються в один текст.
+# Після цього текст обрізається до максимальної довжини.
+
 def _extract_docx(path: Path, *, max_chars: int) -> str:
     try:
         doc = Document(str(path))
@@ -51,6 +84,16 @@ def _extract_docx(path: Path, *, max_chars: int) -> str:
         return text[:max_chars]
     except Exception:
             return ""
+
+# Документ відкривається через PdfReader.
+# Далі:
+    # читаються сторінки;
+    # текст витягується методом
+    # page.extract_text()
+# Щоб не обробляти великі документи, встановлено обмеження: max_pages = 3
+# тобто аналізуються лише перші три сторінки.
+# Також контролюється загальна кількість символів.
+# Як тільки досягнуто max_chars — читання припиняється.
 
 def _extract_pdf(path: Path, *, max_chars: int) -> str:
     try:
@@ -76,6 +119,16 @@ def _extract_pdf(path: Path, *, max_chars: int) -> str:
         return "\n".join(parts)
     except Exception:
         return ""
+
+# Презентація відкривається через Presentation.
+# Далі:
+    # проходяться слайди;
+    # проходяться всі об'єкти на слайді;
+    # якщо об'єкт містить текст — він додається до результату.
+# Для оптимізації встановлено обмеження:
+    # max_slides = 10
+# тобто аналізуються лише перші десять слайдів.
+# Також контролюється загальна кількість символів.
 
 def _extract_pptx(path: Path, *, max_chars: int) -> str:
     try:
@@ -103,6 +156,20 @@ def _extract_pptx(path: Path, *, max_chars: int) -> str:
         return "\n".join(parts)
     except Exception:
         return ""
+
+
+# Excel-файл відкривається у режимі лише для читання:
+#     read_only=True
+# Це дозволяє працювати швидше та економити пам'ять.
+# Далі:
+#     проходяться аркуші;
+#     проходяться рядки;
+#     з кожного рядка вибираються непорожні клітинки;
+#     клітинки об'єднуються через символ
+# Щоб уникнути надто великої обробки, встановлено обмеження:
+#     max_sheets = 2
+#     max_rows_per_sheet = 50
+# Після завершення книга закривається.
 
 def _extract_xlsx(path: Path, *, max_chars: int) -> str:
     try:
