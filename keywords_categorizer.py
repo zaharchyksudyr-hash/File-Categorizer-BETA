@@ -1,5 +1,7 @@
 # from __future__ import annotations
-#
+# 
+# теж тестовий режим лише з бібліотекою ключових категорій, підкатегорій та просто слів по яким вони обираються для режиму basic_categorizer.py
+# 
 # CATEGORY_KEYWORDS: dict[str, dict[str, list[str]]] = {
 #     "Study":
 #         { "Labs":
