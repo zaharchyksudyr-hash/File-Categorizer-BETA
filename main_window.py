@@ -1,3 +1,12 @@
+
+# PyQt6:
+    # QtWidgets (QMainWindow, QTableWidget, QDockWidget) — побудова каркаса інтерфейсу, таблиць, кнопок та випадаючих списків.
+    # QtCore (QThread, pyqtSignal) — керування фоновими потоками та безпечна передача даних (прогресу, статусів) між потоками та GUI.
+    # QtGui (QPainter) — низькорівневе малювання для створення вертикальної кнопки.
+
+# collections (Counter) — вбудований модуль для швидкого підрахунку категорій.
+# pathlib (Path) — безпечна робота зі шляхами файлів, виділення розширень документів.
+
 from __future__ import annotations
 from pathlib import Path
 from collections import Counter
@@ -14,6 +23,10 @@ from core.scanner import folder_way
 from core.organizer import MovePlanItem
 from core.extractor import extract_text
 
+# OverlayWidget Створює ефект «розматого» або затемненого фону поверх основного вікна (часто використовується під час тривалого фонового процесу чи показу модальних вікон).
+# rgba(0, 0, 0, 140) задає чорний колір із прозорістю.
+# QGraphicsOpacityEffect додано для того, щоб у майбутньому можна було плавно (через анімацію) змінювати прозорість від 0.0 до 1.0.
+
 class OverlayWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -23,6 +36,9 @@ class OverlayWidget(QWidget):
         self.opacity_effect.setOpacity(0.0)
         self.setGraphicsEffect(self.opacity_effect)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+
+# Звичайна кнопка QPushButton, але її текст повернуто вертикально на 90 градусів проти годинникової стрілки. Dикористовуються для бічноЇ панеі.
+        
 class RotatedButton(QPushButton):
     def __init__(self, text="", parent = None):
         super().__init__(text, parent)
@@ -48,6 +64,14 @@ class RotatedButton(QPushButton):
         painter.setFont(self.font())
         painter.setPen(self.palette().buttonText().color())
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, self.text())
+
+
+# Кастомний Drag & Drop
+# Спадкується від QLabel, але вмикає підтримку перетягування через self.setAcceptDrops(True).
+# У методі dragEnterEvent віджет суворо перевіряє, що саме користувач приніс. Якщо це не файл, а саме існуюча папка (is_dir()), інтерфейс змінює стиль на дружній синій (_set_hover_style()) та підсвічується.
+# СЯкщо користувач відпускає мишку над зоною (dropEvent), віджет генерує кастомний Qt-сигнал folder_dropped.emit(str(first_path)). 
+# Головне вікно зможе підписатися на цей сигнал і миттєво підтягнути шлях source.
+        
 class DropZone(QLabel):
     folder_dropped = pyqtSignal(str)
     def __init__(self):
@@ -122,6 +146,11 @@ class DropZone(QLabel):
         except Exception:
             event.ignore()
 
+# Потокобезпечна обробка помилок. 
+# Якщо під час обробки конкретного (наприклад, третього з десяти) файлу нейромережа «впаде» з помилкою, додаток не закриється. 
+# Програма запише йому категорію Misc/LLMError або Misc/Error, зафіксує статус невдачі й продовжить аналізувати інші файли. Це правильний підхід для софту, що працює з даними користувача.
+# Гнучкість режимів - код чітко розділяє ai (класифікація через текстові промпти / генеративні моделі) та тестовий smart режим (семантичний пошук через порівняння близькості векторних ембеддингів).
+
 class ScanWorker(QObject):
     progress_changed = pyqtSignal(int)
     status_changed = pyqtSignal(str)
@@ -180,6 +209,11 @@ class ScanWorker(QObject):
             self.finished.emit(files_rules)
         except Exception as e:
             self.error.emit(repr(e))
+
+# Пряме зв'язування з ядром додатка, цей клас виступає мостом між інтерфейсом і модулем core/organizer.
+# Передача емітерів сигналів як аргументів: Конструкція progress_callback=self.progress_changed.emit. 
+# Функція сортування всередині core нічого не знає про PyQt6, вона просто викликає передану їй функцію-callback, а emit автоматично передає цей прогрес нагору у графічний інтерфейс.
+
 class ApplyWorker(QObject):
     progress_changed = pyqtSignal(int)
     status_changed = pyqtSignal(str)
@@ -204,6 +238,9 @@ class ApplyWorker(QObject):
 
         except Exception as e:
             self.error.emit(repr(e))
+
+# Конструктор — Центральний контролер інтерфейсу. 
+# Реалізує компоновку макетів (QVBoxLayout, QHBoxLayout), конфігурує інтерактивну таблицю результатів QTableWidget з підтримкою сортування та задає єдиний темний стиль додатку через QSS (Qt Style Sheets).
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -446,6 +483,11 @@ class MainWindow(QMainWindow):
                 background: transparent;
             }
         """)
+
+
+# Патерн «Ледаче завантаження» (Lazy Loading). Моделі ШІ та ваги нейромереж ініціалізуються в пам'яті лише в момент виклику відповідного режиму, що забезпечує миттєвий старт графічної оболонки додатка. 
+# Пінгування сервера Ollama винесено в нативний потік Python, щоб уникнути фризів вікна.
+    
     def ensure_embedding_components(self):
         if self.embedder is None:
             from core.embeddings import Embedder
@@ -465,6 +507,8 @@ class MainWindow(QMainWindow):
 
             threading.Thread(target=ensure_ollama_ready, daemon=True).start()
 
+# Обробники встановлення цільових директорій. Реалізують два альтернативні інтерфейси введення: через Drag & Drop (сигнал від кастомної зони) або через нативні діалогові вікна ОС (QFileDialog.getExistingDirectory).
+    
     def set_source_folder_from_drop(self, folder_path: str):
         self.source_folder = folder_path
         self.label_source.setText(f"Source: {folder_path}")
@@ -487,9 +531,14 @@ class MainWindow(QMainWindow):
         self.label_destination.setText(f"Destination: {path}")
         self._update_buttons()
 
+# Автоматичний реактивний контроль стану UI. Динамічно керує доступністю кнопок (setEnabled), перевіряючи наявність обраних шляхів у пам'яті додатка та валідність списку запланованих дій.
+
     def _update_buttons(self):
         self.button_scan.setEnabled(bool(self.source_folder))
         self.button_apply.setEnabled(bool(self.destination_folder) and len(self.files_rules) > 0)
+
+# Метод рендерингу результатів аналізу в QTableWidget. Тимчасово вимикає сортування та генерацію подій (_ignore_table_events) для уникнення аномалій рекурсії під час масової вставки рядків. 
+# За допомогою побітових масок (~Qt.ItemFlag.ItemIsEditable) блокує для редагування всі стовпці, окрім стовпця «Категорія».
 
     def _fill_table(self, files_rules: list[MovePlanItem]):
         self._ignore_table_events = True
@@ -525,6 +574,9 @@ class MainWindow(QMainWindow):
         self.table.setSortingEnabled(True)
         self._ignore_table_events = False
 
+# Метод ініціалізації багатопотокового аналізу. Запускає сканування через folder_way, конфігурує компоненти ШІ відповідно до обраного режиму й створює екземпляр класу QThread. 
+# Передає об'єкт ScanWorker у фоновий потік, зв'язуючи його життєвий цикл (started/finished) з очищенням пам'яті (deleteLater).
+    
     def scan(self):
         if not self.source_folder:
             QMessageBox.warning(self, "Missing source", "Choose source folder first.")
@@ -573,6 +625,9 @@ class MainWindow(QMainWindow):
 
         self.scan_thread.start()
 
+# Метод ініціалізації фізичних операцій на диску. 
+# Аналогічно до сканування, делегує «важку» операцію копіювання чи переміщення файлів окремому асинхронному потоку ApplyWorker, захищаючи графічну оболонку від зависання під час дискового вводу-виводу.
+    
     def apply(self):
         if not self.destination_folder:
             QMessageBox.warning(self, "Missing destination", "Choose destination folder first.")
@@ -608,6 +663,10 @@ class MainWindow(QMainWindow):
 
         self.apply_thread.start()
 
+# Слот зворотного зв'язку (подія редагування клітинки). 
+# Дозволяє користувачу вручну перевизначити семантичну категорію файлу безпосередньо в таблиці перед фізичним сортуванням. 
+# Метод перезаписує відповідний об'єкт MovePlanItem у загальному списку.
+    
     def on_item_changed(self, item: QTableWidgetItem):
         if self._ignore_table_events:
             return
@@ -630,11 +689,15 @@ class MainWindow(QMainWindow):
             score=old_item.score,
             method=old_item.method)
 
+# Приймають асинхронні сигнали від фонових робочих потоків для динамічного оновлення прогрес-бару та текстового рядка стану в реальному часі.
+
     def on_progress_changed(self, value: int):
         self.progress_bar.setValue(value)
 
     def on_status_changed(self, text: str):
         self.status_label.setText(f"Processing -> {text}")
+
+# Обробники успішного завершення задач. Повертають інтерфейс у штатної режим, ховають прогрес-бар, викликають оновлення таблиці та виводять інформаційне модальне вікно QMessageBox з фінальним звітом.
 
     def on_apply_finished(self):
         self.progress_bar.setValue(100)
@@ -657,6 +720,8 @@ class MainWindow(QMainWindow):
         summary_text = self.build_scan_summary(self.files_rules)
         QMessageBox.information(self, "Scan complete", summary_text)
 
+# Обробники виняткових ситуацій (ексепшенів). Ловлять критичні помилки з фонових потоків, скидають стан інтерфейсу та інформують користувача через діалог помилки QMessageBox.critical.
+
     def on_scan_error(self, error_text: str):
         self.progress_bar.setVisible(False)
         self.status_label.setText("Scan error")
@@ -671,6 +736,8 @@ class MainWindow(QMainWindow):
         self.button_scan.setEnabled(True)
         self._update_buttons()
         QMessageBox.critical(self, "Apply failed", error_text)
+
+# Реалізують плавне візуальне занурення основного контенту (затемнення фону за допомогою QPropertyAnimation по властивості opacity), коли відкривається бічна панель.
 
     def fade_in_overlay(self):
         self.dim_animation = QPropertyAnimation(self.content_effect, b"opacity")
@@ -687,6 +754,9 @@ class MainWindow(QMainWindow):
         self.dim_animation.setEndValue(1.0)
         self.dim_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
         self.dim_animation.start()
+
+# Обробник тригера висувної шторки. Керує властивістю maximumWidth віджета QDockWidget за допомогою закону плавности ходу OutCubic. 
+# Змінює ширину панелі між 0 та 260 пікселями, забезпечуючи плавний інтерфейсний перехід.
 
     def toggle_drop_panel(self):
         should_open = self.button_toggle_drop.isChecked()
@@ -707,10 +777,15 @@ class MainWindow(QMainWindow):
         is_open = self.drop_dock.maximumWidth() > 0
         self.button_toggle_drop.setChecked(is_open)
 
+# Перевизначений системний метод зміни розміру вікна. Гарантує, що матриця блокувального оверлея (overlay) завжди точно масштабується під нові геометричні кордони контейнера контенту.
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, "overlay") and hasattr(self, "content_widget"):
             self.overlay.setGeometry(self.content_widget.rect())
+
+# Статистичний аналізатор результатів сканування. 
+# Використовує клас collections.Counter для агрегації даних, підраховуючи кількість файлів у кожній категорії, та формує текстовий звіт для фінального вікна.
 
     def build_scan_summary(self, files_rules: list[MovePlanItem]) -> str:
         if not files_rules:
